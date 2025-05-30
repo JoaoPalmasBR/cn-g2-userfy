@@ -29,6 +29,7 @@ def gerar_pdf(pedido):
     return file_path
 
 def processar_pedidos():
+    print("Iniciando processamento de pedidos...")
     while True:
         response = sqs.receive_message(
             QueueUrl=queue_url,
@@ -45,11 +46,13 @@ def processar_pedidos():
                 print(f"Pedido {pedido_id} não encontrado.")
                 continue
 
+            print("antes do pdf")
             # Gerar e salvar PDF no S3
             pdf_path = gerar_pdf(pedido)
             with open(pdf_path, "rb") as f:
                 s3.upload_fileobj(f, S3_BUCKET, f"{pedido_id}.pdf")
-
+            print("depois do pdf")
+            
             # Atualizar status no DynamoDB
             tabela.update_item(
                 Key={"id": pedido_id},

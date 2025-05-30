@@ -9,6 +9,7 @@ router = APIRouter()
 def listar_comprovantes():
     try:
         response = s3.list_objects_v2(Bucket=config.S3_BUCKET)
+        print(response)
         arquivos = response.get("Contents", [])
         return [
             {
