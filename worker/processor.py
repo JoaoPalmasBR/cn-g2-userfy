@@ -2,7 +2,21 @@ import time
 import boto3
 from reportlab.pdfgen import canvas
 from config import AWS_REGION, DYNAMODB_TABLE, SQS_QUEUE, S3_BUCKET
+from botocore.exceptions import ClientError
 
+def esperar_fila(sqs, nome_fila):
+    while True:
+        try:
+            print(f"🔍 Verificando existência da fila '{nome_fila}'...")
+            url = sqs.get_queue_url(QueueName=nome_fila)['QueueUrl']
+            print(f"✅ Fila '{nome_fila}' pronta: {url}")
+            return url
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'AWS.SimpleQueueService.NonExistentQueue':
+                print("⏳ Fila ainda não disponível, aguardando...")
+                time.sleep(2)
+            else:
+                raise
 
 
 # Configuração boto3
@@ -16,8 +30,9 @@ sqs = session.client("sqs", endpoint_url="http://localstack:4566")
 dynamodb = session.resource("dynamodb", endpoint_url="http://localstack:4566")
 s3 = session.client("s3", endpoint_url="http://localstack:4566")
 
-queue_url = f"http://localstack:4566/000000000000/{SQS_QUEUE}"
-
+# queue_url = f"http://localstack:4566/000000000000/{SQS_QUEUE}"
+queue_url = esperar_fila(sqs, SQS_QUEUE)
+# a
 def gerar_pdf(pedido):
     file_path = f"/tmp/{pedido['id']}.pdf"
     c = canvas.Canvas(file_path)
@@ -68,7 +83,7 @@ def processar_pedidos():
             )
 
             print(f"Pedido {pedido_id} processado.")
-        time.sleep(2)
+        time.sleep(60)
 
 if __name__ == "__main__":
     processar_pedidos()
