@@ -18,7 +18,6 @@ def esperar_fila(sqs, nome_fila):
             else:
                 raise
 
-
 # Configuração boto3
 session = boto3.Session(
     aws_access_key_id="joao",
@@ -29,10 +28,10 @@ session = boto3.Session(
 sqs = session.client("sqs", endpoint_url="http://localstack:4566")
 dynamodb = session.resource("dynamodb", endpoint_url="http://localstack:4566")
 s3 = session.client("s3", endpoint_url="http://localstack:4566")
+sns_client = boto3.client('sns', endpoint_url='http://localstack:4566', region_name='us-east-1')
 
-# queue_url = f"http://localstack:4566/000000000000/{SQS_QUEUE}"
 queue_url = esperar_fila(sqs, SQS_QUEUE)
-# a
+
 def gerar_pdf(pedido):
     file_path = f"/tmp/{pedido['id']}.pdf"
     c = canvas.Canvas(file_path)
@@ -42,6 +41,14 @@ def gerar_pdf(pedido):
     c.drawString(100, 690, f"Itens: {', '.join(pedido['itens'])}")
     c.save()
     return file_path
+
+def publicar_notificacao_pedido_concluido(pedido_id):
+    response = sns_client.publish(
+        TopicArn='arn:aws:sns:us-east-1:000000000000:PedidosConcluidos',
+        Message=f'Novo pedido concluído: {pedido_id}',
+        Subject='Pedido Pronto!'
+    )
+    print(f"Notificação SNS enviada para pedido {pedido_id}, response={response}")
 
 def processar_pedidos():
     print("Iniciando processamento de pedidos...")
@@ -82,6 +89,9 @@ def processar_pedidos():
                 ReceiptHandle=msg["ReceiptHandle"]
             )
 
+            # Publicar notificação no SNS
+            publicar_notificacao_pedido_concluido(pedido_id)
+            
             print(f"Pedido {pedido_id} processado.")
         time.sleep(60)
 
