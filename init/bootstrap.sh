@@ -23,3 +23,17 @@ aws --endpoint-url=http://localstack:4566 s3api create-bucket \
   --bucket foodz-comprovantes
 
 echo "Recursos criados com sucesso!"
+
+
+
+
+
+
+echo "Criando tópico SNS..."
+
+aws --endpoint-url=http://localstack:4566 sns create-topic \
+  --name PedidosConcluidos
+
+echo "Tópico SNS criado com sucesso!"
+
+aws --endpoint-url=http://localstack:4566 sns list-topics
