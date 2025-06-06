@@ -11,3 +11,4 @@ dynamodb = session.resource("dynamodb", endpoint_url="http://localstack:4566")
 sqs = session.client("sqs", endpoint_url="http://localstack:4566")
 # aws.py
 s3 = session.client("s3", endpoint_url="http://localstack:4566")
+sns = session.client("sns", endpoint_url="http://localstack:4566")
