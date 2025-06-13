@@ -10,8 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY config.py .
 COPY processor.py .
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
-ENTRYPOINT ["/entrypoint.sh", "python", "processor.py"]
+ENTRYPOINT ["./entrypoint.sh", "python", "processor.py"]
 

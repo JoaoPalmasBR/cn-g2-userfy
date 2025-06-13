@@ -1,10 +1,36 @@
 version: '3.8'
 
 services:
+  localstack:
+    image: localstack/localstack
+    container_name: localstack
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=sqs,dynamodb
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/var/lib/localstack/data
+      - /var/run/docker.sock:/var/run/docker.sock
+  init:
+    build:
+      context: ./init
+    container_name: userfy_init
+    depends_on:
+      - localstack
+    entrypoint: ["/bin/sh", "/app/bootstrap.sh"]
+    environment:
+      - AWS_ACCESS_KEY_ID=joao
+      - AWS_SECRET_ACCESS_KEY=joao
+      - AWS_REGION=us-east-1    
+      
   api:
     build:
       context: ./api
-    container_name: foodz_api
+    container_name: userfy_api
     ports:
       - "8000:8000"
     environment:
@@ -13,43 +39,21 @@ services:
       - AWS_DEFAULT_REGION=us-east-1
     depends_on:
       - localstack
+      - init
 
   worker:
     build:
       context: ./worker
-    container_name: foodz_worker
+    container_name: userfy_worker
     depends_on:
       - localstack
+      - init
+      - api
     environment:
       - AWS_ACCESS_KEY_ID=joao
       - AWS_SECRET_ACCESS_KEY=joao
       - AWS_DEFAULT_REGION=us-east-1
 
-  init:
-    build:
-      context: ./init
-    container_name: foodz_init
-    depends_on:
-      - localstack
-    entrypoint: ["/bin/sh", "/app/bootstrap.sh"]
-    environment:
-      - AWS_ACCESS_KEY_ID=joao
-      - AWS_SECRET_ACCESS_KEY=joao
-      - AWS_REGION=us-east-1
-
-  localstack:
-    image: localstack/localstack
-    container_name: localstack
-    ports:
-      - "4566:4566"
-      - "4510-4559:4510-4559"
-    environment:
-      - SERVICES=s3,sqs,dynamodb,sns
-      - DEBUG=1
-      - DATA_DIR=/tmp/localstack/data
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    volumes:
-      - localstack_data:/var/lib/localstack/data
-      - /var/run/docker.sock:/var/run/docker.sock
+  
 volumes:
   localstack_data:

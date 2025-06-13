@@ -1,56 +1,63 @@
-from fastapi import FastAPI
-from app.handlers.pedidos import criar_pedido
-from app.schemas import PedidoInput
-from app.routes.comprovantes import router as comprovantes_router
+from fastapi import FastAPI, HTTPException
+from app.schemas import UserInput
 import boto3
-from app.utils.aws import dynamodb, sns
+from app.utils.aws import dynamodb, sqs
 from app import config
-import json
+import uuid
+from botocore.exceptions import ClientError
+
 
 app = FastAPI()
-app.include_router(comprovantes_router)
 
 sns_client = boto3.client('sns', endpoint_url='http://localstack:4566', region_name='us-east-1')
 
-@app.post("/pedidos")
-async def post_pedido(pedido: PedidoInput):
-    return criar_pedido(pedido)
-
-@app.put("/pedidos/{pedido_id}/concluir", tags=["Pedidos"])
-def concluir_pedido(pedido_id: str):
+@app.post("/users")
+async def post_user(user: UserInput):
     try:
+        user_id = str(uuid.uuid4())
+        # Grava no DynamoDB
         tabela = dynamodb.Table(config.DYNAMODB_TABLE)
-
-        # Atualiza o status para "concluído"
-        tabela.update_item(
-            Key={"id": pedido_id},
-            UpdateExpression="SET #s = :s",
-            ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={":s": "concluído"}
+        tabela.put_item(Item={
+            "id": user_id,
+            "nome": user.nome,
+            "email": user.email
+        })
+        # Log de sucesso (opcional)
+        print(f"Usuario criado com ID: {user_id}")
+        # Envia para SQS
+        sqs.send_message(
+            QueueUrl=f"http://localstack:4566/000000000000/{config.SQS_QUEUE}",
+            MessageBody=user_id,
+            MessageGroupId="Users"
         )
-
-        # Publica no SNS
-        topicarn = 'arn:aws:sns:us-east-1:000000000000:PedidosConcluidos'
-        message1 = f'Novo pedido concluído: {pedido_id}'
-        subject1 = 'Pedido Pronto!'
-
-        response = sns_client.publish(
-            TopicArn = topicarn,
-            Message = message1,
-            Subject=subject1
-        )
-        
-        print(f"Notificação SNS enviada para pedido {pedido_id}, response={response}")
-        print("do formato que o deliberado quer")
-        print({
-    "TopicArn": topicarn,
-    "Message": message1,
-    "Subject": subject1
-})
-        
-
-        return {"id": pedido_id, "status": "concluído", "sns_message_id": response.get("MessageId")}
+        return {"id": user_id, "status": "recebido"}
 
     except Exception as e:
-        print(f"Erro ao concluir pedido: {e}")
-        raise HTTPException(status_code=500, detail="Erro interno ao concluir pedido.")
+        print(f"Erro ao criar usuario: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno ao processar usuario.")
+@app.get("/users")
+def listar_users():
+    try:
+        # listar usuarios no DynamoDB
+        dynamodb = boto3.resource(
+            'dynamodb',
+            region_name="us-east-1",
+            endpoint_url="http://localstack:4566"
+        )
+        DYNAMODB_TABLE = dynamodb.Table("Users")
+
+        response = DYNAMODB_TABLE.scan()
+        # print(response)
+        usuarios = response.get("Items", [])
+        return [
+            {
+                "id": user["id"],
+                "nome": user["nome"],
+                "email": user["email"]
+            }
+            for user in usuarios
+        ]
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            return []
+        raise
